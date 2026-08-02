@@ -31,9 +31,9 @@ double avg_aa_total = 0;
 
 uint32_t counter = 0;
 double sta_window = 50.0; // tần số lấy mẫu là 100hz => 1s
-double lta_window = 500.0; // tương tự => 20s
-double sta_avg = 0;
-double lta_avg = 0.01; 
+double lta_window = 500.0; // tương tự => 10s
+double sta_avg = 0.001;
+double lta_avg = 0.001; 
 double trig_threshold = 3.0;
 double detrig_threshold = 1.5;
 double rate = 0;
@@ -102,30 +102,35 @@ void loop() {
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
     mpu.dmpConvertToWorldFrame(&aaWorld, &aaReal, &q);
-    
+
     avg_aa_x = aaWorld.x * (1.0 / 8192.0) * EARTH_GRAVITY_MS2; 
     avg_aa_y = aaWorld.y * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
     avg_aa_z = aaWorld.z * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
+      
     avg_aa_total = sqrt(pow(avg_aa_x,2) + pow(avg_aa_y,2) + pow(avg_aa_z,2));
 
     if (!first_data) { // để khi khởi động thì rate không bị lấy 0/0 
+     
       sta_avg = sta_avg + (avg_aa_total - sta_avg)/sta_window;
+      Serial.print(sta_avg );
+      Serial.print("\t");
       if (!earthquake) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
         lta_avg = lta_avg + (avg_aa_total - lta_avg)/lta_window;
+        Serial.println(lta_avg);
       }
-      if (boot_time > lta_window) { 
-        rate = sta_avg/lta_avg;
-        Serial.println(rate);
-        if (rate > trig_threshold) {
-          Serial.println("===DONG DAT===");
-          earthquake = true;
-        }
-        else if (rate <= detrig_threshold) {
-          Serial.println("KET THUC DONG DAT");
-          earthquake = false;
-        }
-      } 
-      else boot_time++;
+
+      rate = sta_avg/lta_avg;
+      Serial.println(rate);
+
+      if (rate > trig_threshold) {
+        Serial.println("===DONG DAT===");
+        earthquake = true;
+      }
+      else if (rate <= detrig_threshold) {
+        Serial.println("KET THUC DONG DAT");
+        earthquake = false;
+      }
+
     }
     else {
       sta_avg = avg_aa_total;
