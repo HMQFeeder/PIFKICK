@@ -30,14 +30,14 @@ double avg_aa_x = 0;
 double avg_aa_total = 0;
 
 uint32_t counter = 0;
-double sta_window = 50.0; // tần số lấy mẫu là 100hz => 1s
-double lta_window = 500.0; // tương tự => 10s
+double sta_window = 50.0; // tần số lấy mẫu là 100hz => 0.5s
+double lta_window = 500.0; // tương tự => 5s
 double sta_avg = 0.001;
 double lta_avg = 0.001; 
 double trig_threshold = 3.0;
 double detrig_threshold = 1.5;
 double rate = 0;
-double boot_time = 0;
+double boot_time = 500; // 5 giây
 
 bool first_data = true;
 bool earthquake = false;
@@ -109,7 +109,7 @@ void loop() {
     avg_aa_z = aaWorld.z * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
       
     avg_aa_total = sqrt(pow(avg_aa_x,2) + pow(avg_aa_y,2) + pow(avg_aa_z,2));
-    if (counter > 5000) { // chờ 5 giây trước khi lấy dữ liệu đầu tiên, tránh lta bị bẩn
+    if (counter > boot_time) { // chờ 5 giây trước khi lấy dữ liệu đầu tiên, tránh lta bị bẩn
       if (!first_data) { // để khi khởi động thì rate không bị lấy 0/0 
         sta_avg = sta_avg + (avg_aa_total - sta_avg)/sta_window;
         Serial.print(sta_avg );
@@ -138,9 +138,10 @@ void loop() {
         first_data = false;
       }
     }
-    else {
+    else if (counter == 0) {
+      Serial.println("DANG KHOI DONG, CHO 5 GIAY");
       counter++;
-      Serial.println("DANG KHOI DONG");
     }
+    else counter++;
   }
 }
