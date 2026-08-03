@@ -85,6 +85,7 @@ void setup() {
   }
   first_data = true;
   earthquake = false;
+  counter = 0;
 }
 
 void loop() {
@@ -108,34 +109,38 @@ void loop() {
     avg_aa_z = aaWorld.z * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
       
     avg_aa_total = sqrt(pow(avg_aa_x,2) + pow(avg_aa_y,2) + pow(avg_aa_z,2));
+    if (counter > 5000) { // chờ 5 giây trước khi lấy dữ liệu đầu tiên, tránh lta bị bẩn
+      if (!first_data) { // để khi khởi động thì rate không bị lấy 0/0 
+        sta_avg = sta_avg + (avg_aa_total - sta_avg)/sta_window;
+        Serial.print(sta_avg );
+        Serial.print("\t");
+        if (!earthquake) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
+          lta_avg = lta_avg + (avg_aa_total - lta_avg)/lta_window;
+          Serial.println(lta_avg);
+        }
 
-    if (!first_data) { // để khi khởi động thì rate không bị lấy 0/0 
-     
-      sta_avg = sta_avg + (avg_aa_total - sta_avg)/sta_window;
-      Serial.print(sta_avg );
-      Serial.print("\t");
-      if (!earthquake) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
-        lta_avg = lta_avg + (avg_aa_total - lta_avg)/lta_window;
-        Serial.println(lta_avg);
+        rate = sta_avg/lta_avg;
+        Serial.println(rate);
+
+        if (rate > trig_threshold) {
+          Serial.println("===DONG DAT===");
+          earthquake = true;
+        }
+        else if (rate <= detrig_threshold) {
+          Serial.println("KET THUC DONG DAT");
+          earthquake = false;
+        }
+
       }
-
-      rate = sta_avg/lta_avg;
-      Serial.println(rate);
-
-      if (rate > trig_threshold) {
-        Serial.println("===DONG DAT===");
-        earthquake = true;
+      else {
+        sta_avg = avg_aa_total;
+        lta_avg = avg_aa_total;
+        first_data = false;
       }
-      else if (rate <= detrig_threshold) {
-        Serial.println("KET THUC DONG DAT");
-        earthquake = false;
-      }
-
     }
     else {
-      sta_avg = avg_aa_total;
-      lta_avg = avg_aa_total;
-      first_data = false;
+      counter++;
+      Serial.println("DANG KHOI DONG");
     }
   }
 }
