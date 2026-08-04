@@ -41,16 +41,21 @@ double boot_time = 1000; // 10 giây
 
 bool first_data = true;
 bool earthquake = false;
+
+const int gas_pin = A0;
+double gas_val = 0;
 void setup() {
 
   Wire.begin(6,5);
   Wire.setClock(400000); // 400kHz I2C clock. Comment on this line if having compilation difficulties
 
   Serial.begin(115200);
+  pinMode(gas_pin, INPUT);
+
   Serial.println(F("Initializing I2C devices..."));
   mpu.initialize();
-  Serial.println(F("Testing MPU6050 connection..."));
 
+  Serial.println(F("Testing MPU6050 connection..."));
   if(mpu.testConnection() == false){
     Serial.println("MPU6050 connection failed");
     while(true);
@@ -92,6 +97,19 @@ void setup() {
 void loop() {
   if (!DMPReady) return;
   /* Read a packet from FIFO */
+    // put your main code here, to run repeatedly:
+  gas_val = analogRead(gas_pin);
+  
+  if (gas_val > 25) {
+    Serial.println("===BAO DONG PHAT HIEN KHI CHAY===");
+    //Serial.print("giá trị là ");
+    //Serial.println(gas_val);
+  }
+  else {
+    //Serial.print("giá trị là ");
+    //Serial.println(gas_val);
+  }
+
   if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
     mpu.dmpGetQuaternion(&q, FIFOBuffer);
 
