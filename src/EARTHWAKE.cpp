@@ -34,10 +34,10 @@ double sta_window = 50.0; // tần số lấy mẫu là 100hz => 0.5s
 double lta_window = 500.0; // tương tự => 5s
 double sta_avg = 0.001;
 double lta_avg = 0.001; 
-double trig_threshold = 3.0;
-double detrig_threshold = 1.5;
+double trig_threshold = 1.5;
+double detrig_threshold = 1.2;
 double rate = 0;
-double boot_time = 500; // 5 giây
+double boot_time = 1000; // 10 giây
 
 bool first_data = true;
 bool earthquake = false;
@@ -71,6 +71,7 @@ void setup() {
   /* Making sure it worked (returns 0 if so) */ 
   if (devStatus == 0) {
     //mpu.CalibrateAccel(100);  // Calibration Time: generate offsets and calibrate our MPU6050
+    //mpu.CalibrateGyro(150);
     Serial.println("These are the Active offsets: ");
     mpu.PrintActiveOffsets();
     Serial.println(F("Enabling DMP..."));   //Turning ON DMP
@@ -116,9 +117,9 @@ void loop() {
         Serial.print("\t");
         if (!earthquake) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
           lta_avg = lta_avg + (avg_aa_total - lta_avg)/lta_window;
-          Serial.println(lta_avg);
+          
         }
-
+        Serial.println(lta_avg);
         rate = sta_avg/lta_avg;
         Serial.println(rate);
 
@@ -126,7 +127,7 @@ void loop() {
           Serial.println("===DONG DAT===");
           earthquake = true;
         }
-        else if (rate <= detrig_threshold) {
+        else if (rate < detrig_threshold) {
           Serial.println("KET THUC DONG DAT");
           earthquake = false;
         }
@@ -139,7 +140,8 @@ void loop() {
       }
     }
     else if (counter == 0) {
-      Serial.println("DANG KHOI DONG, CHO 5 GIAY");
+      Serial.printf("DANG KHOI DONG, CHO %i GIAY", (int)boot_time/100);
+      Serial.println("");
       counter++;
     }
     else counter++;
