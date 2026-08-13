@@ -10,7 +10,7 @@ const char* SSID = "USVMessWifi"; // khai báo tên mạng mesh
 const char* PASSWORD = NULL; // Khai báo mật khẩu của mạng mesh
 const uint PORT = 5555; // khai báo cổng thông tin cho mạng mesh, ở đây dùng cổng 5555  
 const uint CHANNEL = 6; // khai báo kênh của wifi, dùng kênh 6
-String Smsg = ""; //khai báo lời nhắn sẽ chuyển 
+String Smsg = "HELLO WORLD"; //khai báo lời nhắn sẽ chuyển 
 uint32_t rootID = 3565053864; // meshID của node root, tìm bằng cách chạy hàm
 
 bool msg_ready = false; // tạo biến báo hiệu xem có tin nhắn sẵn sàng chưa
@@ -74,6 +74,9 @@ void CheckMessageState();
 void CheckEarthQuake();
 void CheckGas();
 void DebugMesh();
+void CheckButtonState();
+
+Task INIT_EARTHQUAKE(TASK_MILLISECOND*100, TASK_FOREVER, &CheckButtonState);
 
 Task DEBUGGING(TASK_SECOND*5, TASK_FOREVER, &DebugMesh);
 
@@ -104,7 +107,9 @@ void setup() {
     USVsche.addTask(EARTHQUAKE);
     USVsche.addTask(GAS);
     USVsche.addTask(DEBUGGING);
+    USVsche.addTask(INIT_EARTHQUAKE);
 
+    INIT_EARTHQUAKE.enable();
     DEBUGGING.enable();
     GAS.enable();
     CHECKMSG.enable();
@@ -113,6 +118,8 @@ void setup() {
     Wire.setClock(400000);
 
     pinMode(gas_pin, INPUT);
+    pinMode(button, INPUT_PULLDOWN);
+    pinMode(buzzer, OUTPUT);
 
     Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
@@ -202,8 +209,8 @@ void CheckMessageState() {
 }
 
 void CheckEarthQuake() {
-    if (!DMPReady) return;
-    /* Read a packet from FIFO */
+    if(!digitalRead(button)) return;
+
     if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
         mpu.dmpGetQuaternion(&q, FIFOBuffer);
 
@@ -272,4 +279,10 @@ void DebugMesh() {
         Serial.println("Gửi broadcast thành công");
     }
     else Serial.println("Gửi broadcast failed");
+}
+
+void CheckButtonState() {
+    if (digitalRead(button)) {
+        EARTHQUAKE.enable();
+    }
 }
