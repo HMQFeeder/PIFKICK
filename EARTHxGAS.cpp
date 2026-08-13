@@ -63,7 +63,7 @@ void setup() {
   else {
     Serial.println("MPU6050 connection successful");
   }
-  
+
   /* Initializate and configure the DMP*/
   Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();
