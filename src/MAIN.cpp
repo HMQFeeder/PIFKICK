@@ -95,7 +95,7 @@ Task GAS(TASK_MILLISECOND * 500, TASK_FOREVER, &CheckGas);
 #include <BLEAdvertisedDevice.h>
 
 // --- CẤU HÌNH THÔNG SỐ ĐO KHOẢNG CÁCH ---
-const int MEASURED_POWER = -59;       // RSSI của Beacon khi đứng cách đúng 1 mét
+int8_t MEASURED_POWER;       // RSSI của Beacon khi đứng cách đúng 1 mét
 const float ENV_FACTOR = 3.5;         // Hệ số nhiễu môi trường hầm lò (từ 3.0 đến 4.5)
 const int SCAN_TIME_SECONDS = 2;      // Mỗi chu kỳ quét sẽ diễn ra trong 2 giây
 bool is_scanning = false;
@@ -135,7 +135,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
           // 3. SO SÁNH: Nếu trùng khớp với mã UUID máy xúc trên điện thoại của bạn
           if (scannedUUID.equalsIgnoreCase("E248CCE1-826F-4B1E-ACA4-446B8F19B949")) {
-            
+            MEASURED_POWER = (int8_t)payload[24];
             int rssi = advertisedDevice.getRSSI();
             float distance = calculateDistance(rssi);
 

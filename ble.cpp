@@ -7,9 +7,9 @@
 #include <BLEAdvertisedDevice.h>
 
 // --- CẤU HÌNH THÔNG SỐ ĐO KHOẢNG CÁCH ---
-const int MEASURED_POWER = -59;       // RSSI của Beacon khi đứng cách đúng 1 mét
 const float ENV_FACTOR = 3.5;         // Hệ số nhiễu môi trường hầm lò (từ 3.0 đến 4.5)
 const int SCAN_TIME_SECONDS = 2;      // Mỗi chu kỳ quét sẽ diễn ra trong 2 giây
+int8_t MEASURED_POWER;
 bool is_scanning = false;
 BLEScan* pBLEScan; // Khai báo bộ quét BLE
 
@@ -51,6 +51,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
           if (scannedUUID.equalsIgnoreCase("E248CCE1-826F-4B1E-ACA4-446B8F19B949")) {
             
             int rssi = advertisedDevice.getRSSI();
+            MEASURED_POWER = (int8_t)payload[24];
             float distance = calculateDistance(rssi);
 
             // --- IN THÔNG TIN ĐÍCH DANH MÁY XÚC LÊN MONITOR ---
