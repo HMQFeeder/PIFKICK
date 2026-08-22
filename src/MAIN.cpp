@@ -53,15 +53,16 @@ double lta = 0.001;
 double trig_threshold = 1.5;
 double detrig_threshold = 1.0;
 double rate = 0;
-double boot_time = 1000; // 10 giây
+double boot_time = 1500; // 15 giây
 
 bool first_data = true;
 bool is_earth_triggered = false;
 
 const int gas_pin = 15;
 double gas_val = 0;
+double gas_threshold = 1000.0;
 const int buzzer = 17;
-const int button = 42;
+const int button = 47;
 
 bool is_gas_triggered = false;
 uint16_t buzz_timer = 0;
@@ -84,7 +85,7 @@ Task CHECKMSG(TASK_SECOND*1, TASK_FOREVER, &CheckMessageState);
 
 Task guiTinNhan(TASK_MILLISECOND*100, TASK_ONCE, &SendMessage); 
 
-Task EARTHQUAKE(TASK_MILLISECOND * 10, 2000 , &CheckEarthQuake);
+Task EARTHQUAKE(TASK_MILLISECOND * 10, 3000 , &CheckEarthQuake);
 
 Task GAS(TASK_MILLISECOND * 500, TASK_FOREVER, &CheckGas);
 
@@ -175,7 +176,7 @@ void setup() {
     USVsche.addTask(CHECKMSG);
     USVsche.addTask(EARTHQUAKE);
     USVsche.addTask(GAS);
-    USVsche.addTask(DEBUGGING);
+    //USVsche.addTask(DEBUGGING);
     USVsche.addTask(INIT_EARTHQUAKE);
 
     INIT_EARTHQUAKE.enable();
@@ -183,8 +184,8 @@ void setup() {
     GAS.enable();
     CHECKMSG.enable();
 
-    //Wire.begin(4,5);
-    //Wire.setClock(400000);
+    Wire.begin(4,5);
+    Wire.setClock(400000);
 
     pinMode(gas_pin, INPUT);
     pinMode(button, INPUT_PULLDOWN);
@@ -296,7 +297,7 @@ void CheckMessageState() {
 }
 
 void CheckEarthQuake() {
-
+    
     if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
         mpu.dmpGetQuaternion(&q, FIFOBuffer);
 
@@ -308,38 +309,47 @@ void CheckEarthQuake() {
 
         mpu.dmpConvertToWorldFrame(&aaWorld, &aaReal, &q);
 
+
+        
+        if (counter < boot_time) {
+            if (counter == 0) {
+                Serial.println("Chế độ động đất đang khởi động chờ 15s");
+            }
+            counter++;
+            if (counter % 100 == 0) {
+                Serial.println(counter);
+            }
+            return;
+        }
+
         aa_x = aaWorld.x * (1.0 / 8192.0) * EARTH_GRAVITY_MS2; 
         aa_y = aaWorld.y * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
         aa_z = aaWorld.z * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
         aa_total = sqrt(pow(aa_x,2) + pow(aa_y,2) + pow(aa_z,2));
-        
-        if (!first_data) { // để khi khởi động thì rate không bị lấy 0/0 
-            sta = sta + (aa_total - sta)/sta_window;
-            //Serial.print(sta_avg );
-            //Serial.print("\t");
-            if (!is_earth_triggered) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
-                lta = lta + (aa_total - lta)/lta_window;
-            }
-            //Serial.println(lta_avg);
-            rate = sta/lta;
-            Serial.println(rate);
 
-            if (rate > trig_threshold && is_earth_triggered == false) {
-                Serial.println("===DONG DAT===");
-                is_earth_triggered = true;
-                digitalWrite(buzzer, HIGH);
-            }
-            else if (rate < detrig_threshold) {
-                Serial.println("KET THUC DONG DAT");
-                is_earth_triggered = false;
-                digitalWrite(buzzer, LOW);
-            }
-        }
-        else {
+        if (first_data) { // để khi khởi động thì rate không bị lấy 0/0 
             Serial.println("KHOI DONG THANH CONG");
             sta = aa_total;
             lta = aa_total;
             first_data = false;
+            return;
+        }
+
+        sta = sta + (aa_total - sta)/sta_window;
+        if (!is_earth_triggered) { // chặn ở đây để lta không bị nhiễm tín hiệu cao khi có động đất đỡ phải chờ nó lọc 
+            lta = lta + (aa_total - lta)/lta_window;
+        }
+        rate = sta/lta;
+        Serial.println(rate);
+
+        if (rate > trig_threshold && is_earth_triggered == false) {
+            Serial.println("===RUNG CHẤN LẠ===");
+            is_earth_triggered = true;
+            digitalWrite(buzzer, HIGH);
+        }
+        else if (rate < detrig_threshold) {
+            is_earth_triggered = false;
+            digitalWrite(buzzer, LOW);
         }
     }
 }
@@ -347,16 +357,16 @@ void CheckEarthQuake() {
 void CheckGas() {
     gas_val = analogRead(gas_pin);
 
-    if (gas_val > 25 && is_gas_triggered == false) {
-        Serial.println("===BAO DONG PHAT HIEN KHI CHAY===");
+    if (gas_val > gas_threshold && is_gas_triggered == false) {
+        Serial.println("===BÁO ĐỘNG PHÁT HIỆN KHÍ CHÁY===");
         is_gas_triggered = true;
         digitalWrite(buzzer, HIGH);
     }
-    else if ( gas_val <= 25 && is_gas_triggered == true) {
+    else if ( gas_val <= gas_threshold && is_gas_triggered == true) {
         is_gas_triggered = false;
         digitalWrite(buzzer, LOW);
     }
-    Serial.print("giá trị là ");
+    Serial.print("giá trị gas là ");
     Serial.println(gas_val);
 }
 
@@ -369,6 +379,6 @@ void DebugMesh() {
 
 void CheckButtonState() {
     if (digitalRead(button)) {
-        EARTHQUAKE.enable();
+        EARTHQUAKE.restart();
     }
 }
