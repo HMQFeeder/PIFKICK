@@ -93,7 +93,7 @@ void loop() {
 /*Initializate function*/
 void Initialize() {
   #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    Wire.begin(6,5);
+    Wire.begin(4,5);
   #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
     Fastwire::setup(400, true);
   #endif

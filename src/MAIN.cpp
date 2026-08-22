@@ -46,14 +46,14 @@ double aa_x = 0;
 double aa_total = 0;
 
 uint32_t counter = 0;
-double sta_window = 50.0; // tần số lấy mẫu là 100hz => 0.5s
-double lta_window = 500.0; // tương tự => 5s
-double sta = 0.001;
-double lta = 0.001; 
+double sta_window = 300.0; // tần số lấy mẫu là 100hz => 0.5s
+double lta_window = 1500.0; // tương tự => 5s
+double sta = 1;
+double lta = 1; 
 double trig_threshold = 1.5;
 double detrig_threshold = 1.0;
 double rate = 0;
-double boot_time = 1500; // 15 giây
+uint16_t boot_time = 3000; // 30 giây
 
 bool first_data = true;
 bool is_earth_triggered = false;
@@ -76,6 +76,9 @@ void CheckEarthQuake();
 void CheckGas();
 void DebugMesh();
 void CheckButtonState();
+void running();
+
+Task RUNNING(TASK_MILLISECOND*10, boot_time, &running);
 
 Task INIT_EARTHQUAKE(TASK_MILLISECOND*100, TASK_FOREVER, &CheckButtonState);
 
@@ -178,12 +181,13 @@ void setup() {
     USVsche.addTask(GAS);
     //USVsche.addTask(DEBUGGING);
     USVsche.addTask(INIT_EARTHQUAKE);
+    USVsche.addTask(RUNNING);
 
     INIT_EARTHQUAKE.enable();
     DEBUGGING.enable();
     GAS.enable();
     CHECKMSG.enable();
-
+    RUNNING.enable();
     Wire.begin(4,5);
     Wire.setClock(400000);
 
@@ -208,9 +212,9 @@ void setup() {
     devStatus = mpu.dmpInitialize();
 
     /* Supply your gyro offsets here, scaled for min sensitivity */
-    mpu.setXAccelOffset(-4209);
-    mpu.setYAccelOffset(-1151);
-    mpu.setZAccelOffset(1703);
+    mpu.setXAccelOffset(-4319);
+    mpu.setYAccelOffset(-1146);
+    mpu.setZAccelOffset(1711);
 
     /* Making sure it worked (returns 0 if so) */ 
     if (devStatus == 0) {
@@ -228,10 +232,6 @@ void setup() {
     DMPReady = true;
     packetSize = mpu.dmpGetFIFOPacketSize(); //Get expected DMP packet size for later comparison
     }
-    first_data = true;
-    is_earth_triggered = false;
-    is_gas_triggered = false;
-    counter = 0;
 
     Serial.println("--- Hệ thống quét Bluetooth bắt đầu khởi động ---");
 
@@ -297,8 +297,11 @@ void CheckMessageState() {
 }
 
 void CheckEarthQuake() {
-    
-    if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
+    if (counter < 150) {
+        counter++;
+        return;
+    }
+    if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet
         mpu.dmpGetQuaternion(&q, FIFOBuffer);
 
         mpu.dmpGetAccel(&aa, FIFOBuffer);
@@ -308,19 +311,6 @@ void CheckEarthQuake() {
         mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
 
         mpu.dmpConvertToWorldFrame(&aaWorld, &aaReal, &q);
-
-
-        
-        if (counter < boot_time) {
-            if (counter == 0) {
-                Serial.println("Chế độ động đất đang khởi động chờ 15s");
-            }
-            counter++;
-            if (counter % 100 == 0) {
-                Serial.println(counter);
-            }
-            return;
-        }
 
         aa_x = aaWorld.x * (1.0 / 8192.0) * EARTH_GRAVITY_MS2; 
         aa_y = aaWorld.y * (1.0 / 8192.0) * EARTH_GRAVITY_MS2;
@@ -378,7 +368,27 @@ void DebugMesh() {
 }
 
 void CheckButtonState() {
-    if (digitalRead(button)) {
-        EARTHQUAKE.restart();
+    if (digitalRead(button) ) {
+        if (RUNNING.isLastIteration()) {
+            first_data = true; 
+            counter = 0;
+            EARTHQUAKE.restart();
+            return;
+        }
+        Serial.printf("Đợi thêm %f giây nữa\n", (RUNNING.getIterations()/100.0));
     }
 }
+
+void running() {
+    if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
+        mpu.dmpGetQuaternion(&q, FIFOBuffer);
+
+        mpu.dmpGetAccel(&aa, FIFOBuffer);
+
+        mpu.dmpGetGravity(&gravity, &q);
+
+        mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+
+        mpu.dmpConvertToWorldFrame(&aaWorld, &aaReal, &q);
+    } 
+} 
