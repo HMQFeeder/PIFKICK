@@ -1,12 +1,67 @@
 #include <Arduino.h>
 #include <vector>
 
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// Kích thước màn hình OLED 0.96 inch
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+#define sda 4
+#define scl 5
+// Khởi tạo đối tượng display, dùng chuẩn I2C (&Wire), chân Reset = -1 (không dùng)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+struct oled_element {
+    String label;
+    int x;
+    int y;
+    String val;
+
+};
+
+oled_element earth = {"mpu: ", 2, 2, "0"};
+oled_element mq7 = {"mq7: ", 2, 12, "0"};
+oled_element msg = {"msg: ", 2, 53," "};
+
+void init_OLED(Adafruit_SSD1306 & display){
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+    }
+    display.clearDisplay();              // Xóa bộ đệm màn hình
+    display.setTextSize(1);              // Kích thước chữ (1 là nhỏ nhất, 2 là lớn hơn...)
+    display.setTextColor(SSD1306_WHITE); // Màu chữ (OLED đơn sắc nên là màu Trắng/Sáng)  
+}
+// Hàm in một chuỗi bất kỳ lên màn hình
+void updateOLED(oled_element & element, String new_val, bool is_alert) {
+    display.setCursor(element.x, element.y);    // Đặt con trỏ tại tọa độ x, y
+
+    if (element.val == new_val) return;
+    element.val = new_val;
+
+
+    // Đảo màu nền và chữ nếu vượt ngưỡng
+    if (is_alert) {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); 
+    } else {
+      display.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
+    }
+
+    
+    display.print(element.label);
+    display.print(new_val);               // Nạp chuỗi vào bộ đệm
+    display.print("   ");
+    display.display();                   // Đẩy bộ đệm ra màn hình thực tế
+}
+
 #include <painlessMesh.h> // thư viện để tạo nên mạng Mesh
 
 Scheduler USVsche; // Khai báo đối tượng để gán task
 painlessMesh USVmesh; // Khai báo đối tượng để gán mesh
 
-const char* SSID = "USVMessWifi"; // khai báo tên mạng mesh
+const char* SSID = "MessWifi"; // khai báo tên mạng mesh
 const char* PASSWORD = NULL; // Khai báo mật khẩu của mạng mesh
 const uint PORT = 5555; // khai báo cổng thông tin cho mạng mesh, ở đây dùng cổng 5555  
 const uint CHANNEL = 6; // khai báo kênh của wifi, dùng kênh 6
@@ -45,7 +100,7 @@ double aa_y = 0;
 double aa_x = 0;
 double aa_total = 0;
 
-uint32_t counter = 0;
+uint16_t counter = 0;
 double sta_window = 300.0; // tần số lấy mẫu là 100hz => 0.5s
 double lta_window = 1500.0; // tương tự => 5s
 double sta = 1;
@@ -57,34 +112,32 @@ uint16_t boot_time = 3000; // 30 giây
 
 bool first_data = true;
 bool is_earth_triggered = false;
-
 const int gas_pin = 15;
-double gas_val = 0;
-double gas_threshold = 1000.0;
+uint16_t gas_val = 0;
+uint16_t gas_threshold = 1000;
 const int buzzer = 17;
 const int button = 47;
 
 bool is_gas_triggered = false;
-uint16_t buzz_timer = 0;
 
 void NewConnectionCB(uint32_t newNodeID); // hàm chạy khi node này phát hiện có thêm node khác kết nối vào nó
 void RecivedCB(uint32_t fromNodeID, String &Rmsg); // hàm chạy khi node này nhận được tin nhắn từ node khác
 void ChangeConnectionCB(); // hàm chạy khi phát hiện sự thay đổi về mặt cấu trúc của mạng (chạy trên toàn bộ node)
 void SendMessage(); // hàm gửi thông tin gồm nhu cầu, vị trí của người bị nạn hướng về node gốc
-void CheckMessageState();
 void CheckEarthQuake();
 void CheckGas();
 void DebugMesh();
 void CheckButtonState();
 void running();
+void buzz();
+
+Task BUZZ(TASK_MILLISECOND*100, TASK_FOREVER, &buzz);
 
 Task RUNNING(TASK_MILLISECOND*10, boot_time, &running);
 
 Task INIT_EARTHQUAKE(TASK_MILLISECOND*100, TASK_FOREVER, &CheckButtonState);
 
 Task DEBUGGING(TASK_SECOND*5, TASK_FOREVER, &DebugMesh);
-
-Task CHECKMSG(TASK_SECOND*1, TASK_FOREVER, &CheckMessageState);
 
 Task guiTinNhan(TASK_MILLISECOND*100, TASK_ONCE, &SendMessage); 
 
@@ -113,6 +166,7 @@ float calculateDistance(int rssi) {
 }
 void FINISHED_SCAN_CB(BLEScanResults foundDevices) {
   pBLEScan->clearResults();
+  is_scanning = false;
 }
 // Lớp (Class) xử lý kết quả mỗi khi quét thấy một thiết bị Bluetooth
 // Lớp (Class) xử lý kết quả quét - LỌC CHÍNH XÁC THEO UUID MÁY XÚC CỦA BẠN
@@ -143,16 +197,16 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
             int rssi = advertisedDevice.getRSSI();
             float distance = calculateDistance(rssi);
 
-            // --- IN THÔNG TIN ĐÍCH DANH MÁY XÚC LÊN MONITOR ---
             Serial.println("\n==================================================");
-            Serial.println("ĐÃ PHÁT HIỆN MÁY XÚC CỦA BẠN!");
+            Serial.println("Kết nối tới vị trí lân cận");
             Serial.print("   UUID: "); Serial.println(scannedUUID);
             Serial.print("   RSSI: "); Serial.print(rssi); Serial.print(" dBm");
             Serial.print("   Khoảng cách: ~ "); Serial.print(distance); Serial.println(" mét");
 
+
             // Logic cảnh báo va chạm an toàn hầm lò
             if (distance > 0 && distance < 2.0) {
-              Serial.println("   ⚠️ CẢNH BÁO NGUY HIỂM: Xe xúc đang ở QUÁ GẦN (< 2m)!");
+              Serial.println(" CẢNH BÁO: Ở quá gần khu vực nguy hiểm (< 2m)!");
             }
             Serial.println("==================================================");
           }
@@ -174,21 +228,21 @@ void setup() {
     
     Serial.print("Node ID của ESP này là: ");
     Serial.println(USVmesh.getNodeId());  //in ra ID của node 
-
+    USVsche.addTask(BUZZ);
     USVsche.addTask(guiTinNhan);
-    USVsche.addTask(CHECKMSG);
     USVsche.addTask(EARTHQUAKE);
     USVsche.addTask(GAS);
     //USVsche.addTask(DEBUGGING);
     USVsche.addTask(INIT_EARTHQUAKE);
     USVsche.addTask(RUNNING);
-
+    BUZZ.enable();
     INIT_EARTHQUAKE.enable();
-    DEBUGGING.enable();
+    //DEBUGGING.enable();
     GAS.enable();
-    CHECKMSG.enable();
+
     RUNNING.enable();
-    Wire.begin(4,5);
+
+    Wire.begin(sda, scl);
     Wire.setClock(400000);
 
     pinMode(gas_pin, INPUT);
@@ -245,6 +299,8 @@ void setup() {
     pBLEScan->setInterval(100);    // Tần suất quét (100ms)
     pBLEScan->setWindow(90);       // Thời gian mở cửa sổ quét dữ liệu (90ms)
 
+    init_OLED(display);
+
 }
 
 void loop() {
@@ -276,6 +332,8 @@ void RecivedCB(uint32_t fromNodeID, String &Rmsg) {
     Serial.print("\n");
     Serial.printf("Lời nhắn là: %s", Rmsg);
     Serial.print("\n");
+    
+    updateOLED(msg, Rmsg, false);
 }
 
 void ChangeConnectionCB() {
@@ -288,12 +346,6 @@ void ChangeConnectionCB() {
 void NewConnectionCB(uint32_t newNodeID) {
     Serial.printf("Có thiết bị kết nối vào mạng, ID: %u", newNodeID); // gửi ID của thiết bị mới kết nối lên Serial
     Serial.print("\n");
-}
-
-void CheckMessageState() {
-    if (msg_ready) {
-        guiTinNhan.enableDelayed();
-    }
 }
 
 void CheckEarthQuake() {
@@ -330,34 +382,39 @@ void CheckEarthQuake() {
             lta = lta + (aa_total - lta)/lta_window;
         }
         rate = sta/lta;
-        Serial.println(rate);
-
+        String temp = String(rate, 1);
         if (rate > trig_threshold && is_earth_triggered == false) {
             Serial.println("===RUNG CHẤN LẠ===");
+            updateOLED(earth, temp, true);
             is_earth_triggered = true;
-            digitalWrite(buzzer, HIGH);
         }
-        else if (rate < detrig_threshold) {
+        else if (rate > detrig_threshold && rate <= trig_threshold && is_earth_triggered == true) {
+            updateOLED(earth, temp, true);
+        }
+        else if (rate <= detrig_threshold && is_earth_triggered == true) {
             is_earth_triggered = false;
-            digitalWrite(buzzer, LOW);
-        }
+            Serial.println("Kết thúc rung chấn");
+            updateOLED(earth, temp, false);
+        } 
+        Serial.println(rate);
+        updateOLED(earth, temp, false);
     }
 }
 
 void CheckGas() {
     gas_val = analogRead(gas_pin);
-
     if (gas_val > gas_threshold && is_gas_triggered == false) {
         Serial.println("===BÁO ĐỘNG PHÁT HIỆN KHÍ CHÁY===");
         is_gas_triggered = true;
-        digitalWrite(buzzer, HIGH);
+        updateOLED(mq7, (String)gas_val, true);
     }
     else if ( gas_val <= gas_threshold && is_gas_triggered == true) {
         is_gas_triggered = false;
-        digitalWrite(buzzer, LOW);
+        updateOLED(mq7, (String)gas_val, false);
     }
     Serial.print("giá trị gas là ");
     Serial.println(gas_val);
+    updateOLED(mq7, (String)gas_val, false);
 }
 
 void DebugMesh() {
@@ -392,3 +449,11 @@ void running() {
         mpu.dmpConvertToWorldFrame(&aaWorld, &aaReal, &q);
     } 
 } 
+
+void buzz() {
+    if (is_earth_triggered || is_gas_triggered) {
+        digitalWrite(buzzer, HIGH);
+        return;
+    }
+    digitalWrite(buzzer, LOW);
+}
