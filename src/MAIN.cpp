@@ -226,7 +226,7 @@ void setup() {
     pinMode(gas_pin, INPUT);
     pinMode(button, INPUT_PULLDOWN);
     pinMode(buzzer, OUTPUT);
-    /*
+    
     Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
 
@@ -264,7 +264,7 @@ void setup() {
     DMPReady = true;
     packetSize = mpu.dmpGetFIFOPacketSize(); //Get expected DMP packet size for later comparison
     }
-    */
+    
     Serial.println("--- Hệ thống quét Bluetooth bắt đầu khởi động ---");
 
     // 2. Khởi tạo thực thể BLE cho chip ESP32
