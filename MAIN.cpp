@@ -88,18 +88,18 @@ double aa_x = 0;
 double aa_total = 0;
 
 uint16_t counter = 0;
-double sta_window = 300.0; // tần số lấy mẫu là 100hz => 0.5s
-double lta_window = 1500.0; // tương tự => 5s
+double sta_window = 100.0; // tần số lấy mẫu là 100hz => 3s
+double lta_window = 1500.0; // tương tự => 15s
 double sta = 1;
 double lta = 1; 
 double trig_threshold = 1.5;
-double detrig_threshold = 1.0;
+double detrig_threshold = 1.2;
 double rate = 0;
 uint16_t boot_time = 3000; // 30 giây
 
 bool first_data = true;
 uint16_t gas_val = 0;
-uint16_t gas_threshold = 1000;
+uint16_t gas_threshold = 400;
 bool is_earth_triggered = false;
 bool is_gas_triggered = false;
 bool is_OLEDalert = false;
@@ -126,7 +126,7 @@ void FINISHED_SCAN_CB(BLEScanResults foundDevices);
 Task BUZZ(TASK_MILLISECOND*100, TASK_FOREVER, &buzz);
 Task BUZZ_BUZZ(TASK_MILLISECOND * 300, 4 , &buzz_buzz);
 
-Task SCANNING(TASK_SECOND*4, TASK_FOREVER, &scanning);
+Task SCANNING(TASK_SECOND*2, TASK_FOREVER, &scanning);
 
 Task RUNNING(TASK_MILLISECOND*10, boot_time, &running);
 Task CHECK_BUTTON(TASK_MILLISECOND*100, TASK_FOREVER, &CheckButtonState);
@@ -208,13 +208,13 @@ void setup() {
     USVsche.addTask(SEND_MESSAGE);
     USVsche.addTask(GAS);
     USVsche.addTask(SCANNING);
-    //USVsche.addTask(RUNNING);
-    //USVsche.addTask(CHECK_BUTTON);
-    //USVsche.addTask(EARTHQUAKE);
+    USVsche.addTask(RUNNING);
+    USVsche.addTask(CHECK_BUTTON);
+    USVsche.addTask(EARTHQUAKE);
     //USVsche.addTask(DEBUGGING);
     
-    //CHECK_BUTTON.enable();
-    //RUNNING.enable();
+    CHECK_BUTTON.enable();
+    RUNNING.enable();
     //DEBUGGING.enable();
     BUZZ.enable();
     GAS.enable();
@@ -244,9 +244,9 @@ void setup() {
     devStatus = mpu.dmpInitialize();
 
     //Supply your gyro offsets here, scaled for min sensitivity
-    mpu.setXAccelOffset(-4319);
-    mpu.setYAccelOffset(-1146);
-    mpu.setZAccelOffset(1711);
+    mpu.setXAccelOffset(-1218);
+    mpu.setYAccelOffset(-48);
+    mpu.setZAccelOffset(1194);
 
     //Making sure it worked (returns 0 if so)
     if (devStatus == 0) {
@@ -443,7 +443,7 @@ void CheckEarthQuake() {
             }
             else {
                 is_earth_triggered = false;
-                updateOLED(earth, temp, false);
+               updateOLED(earth, temp, false);
                 Serial.println(rate);
             }
         }
@@ -467,7 +467,7 @@ void CheckGas() {
     gas_val = analogRead(gas_pin);
 
     if (gas_val > gas_threshold) {
-        updateOLED(mq7, (String)gas_val, true);
+       updateOLED(mq7, (String)gas_val, true);
         if (is_gas_triggered == false) {
             Serial.println("===BÁO ĐỘNG PHÁT HIỆN KHÍ CHÁY===");
             is_gas_triggered = true;
